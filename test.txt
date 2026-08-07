@@ -1,0 +1,10 @@
+kns nuvolaris
+
+kg po
+kdel svc/ollama po/ollama
+
+ops bestia trustable undeploy
+
+ops bestia trustable deploy
+
+

@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: trustable
+spec:
+  serviceName: trustable
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trustable
+  template:
+    metadata:
+      labels:
+        app: trustable
+    spec:
+      hostname: trustable
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "1"
+      volumes:
+      - name: workspace
+        hostPath:
+          path: /home/trustable/workspace
+      - name: nginx-config
+        configMap:
+          name: nginx-proxy-config
+      containers:
+      - name: trustable
+        image: $IMAGE
+        #command: ["tail", "-f", "/dev/null"]
+        ports:
+        - containerPort: 2222
+          name: ssh
+          protocol: TCP
+        - containerPort: 8910
+          name: web
+          protocol: TCP
+        - containerPort: 4096
+          name: opencode
+          protocol: TCP
+        - containerPort: 5173
+          name: vite
+          protocol: TCP
+        volumeMounts:
+        - name: workspace
+          mountPath: /home/trustable/workspace
+        env:
+        - name: DEBIAN_FRONTEND
+          value: noninteractive
+        - name: USERID
+          value: "$USERID"
+        - name: GROUPID
+          value: "$GROUPID"
+        - name: B64KUBECONFIG
+          valueFrom:
+            secretKeyRef:
+              name: kube-secret
+              key: kubeconfig
+      - name: reverse-proxy
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        command: ["nginx", "-g", "daemon off;"]
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trustable-ssh
+  labels:
+    app: trustable
+spec:
+  type: NodePort
+  selector:
+    app: trustable
+  ports:
+  - port: 2222
+    targetPort: 2222
+    nodePort: 30222
+    protocol: TCP
+    name: ssh
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trustable-svc
+spec:
+  selector:
+    app: trustable
+  type: ClusterIP
+  ports:
+    - name: web
+      port: 8910
+      targetPort: 8910
+    - name: opencode
+      port: 4096
+      targetPort: 4096
+    - name: vite
+      port: 5173
+      targetPort: 5173
