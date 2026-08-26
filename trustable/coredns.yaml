@@ -13,10 +13,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-version: "3"
-
-
-tasks:
-
-  trustable:
-    desc: trustable
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  miniops.server: |
+    miniops.me:53 {
+      errors
+      template IN A miniops.me {
+        match "^(.*\.)?miniops\.me\.$"
+        answer "{{ .Name }} 60 IN A 127.0.0.1"
+      }
+      cache 30
+    }

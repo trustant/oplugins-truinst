@@ -1,0 +1,255 @@
+# Copyright 2025-2026 Nuvolaris Inc
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+version: "3"
+
+vars:
+  ACTION: "apply"
+  KEY: "trustable"
+  EXTRA: ""
+  UID:
+    sh: 'echo {{ if eq OS "windows" }}1000{{ else }}$(id -u){{ end }}'
+  GID:
+    sh: 'echo {{ if eq OS "windows" }}1000{{ else }}$(id -g){{ end }}'
+
+  ENTRY: trustable
+  SSHDIR:
+    sh: |
+        echo ~/.ssh | replace -s \\ -r / --stdin
+  SSHKEY:
+    sh: |
+        echo {{.SSHDIR}}/id_trustable
+
+  INGRESS:
+    sh: ops util ingress
+
+env:
+  TIKA_IMAGE: docker.io/apache/tika:3.2.3.0-full
+  KUBECONFIG:
+    sh: |-
+      if test -e "$OPS_TMP/kubeconfig"
+      then echo "$OPS_TMP/kubeconfig"
+      else echo ~/.kube/config
+      fi
+
+tasks:
+
+  info:
+    silent: true
+    cmds:
+    - echo 'Trustable Image:' "${BESTIA_IMAGES_TRUSTABLE}"
+
+  expose-external:
+    silent: true
+    desc: remove Trustable .deb k3s HTTP/HTTPS external visibility block
+    cmds:
+    - |
+      set -e
+      DROPIN="/etc/systemd/system/k3s.service.d/blockports.conf"
+      CNI_PATH_DROPIN="/etc/systemd/system/k3s.service.d/bestia-cni-path.conf"
+      IPTABLES="$(command -v iptables || true)"
+      IFACE=""
+      NEEDS_RESTART="false"
+      if test -f "${DROPIN}"; then
+        IFACE="$(sed -n 's/.* -i \([^ ]*\) .*/\1/p' "${DROPIN}" | head -1)"
+        if grep -q -- '--dports 80,443' "${DROPIN}"; then
+          NEEDS_RESTART="true"
+        fi
+      fi
+      test -n "${IFACE}" || IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
+
+      remove_rule() {
+        iface="$1"
+        ports="$2"
+        test -n "${IPTABLES}" || return 0
+        test -n "${iface}" || return 0
+        while sudo "${IPTABLES}" -t raw -C PREROUTING -i "${iface}" -p tcp -m multiport --dports "${ports}" -j DROP >/dev/null 2>&1; do
+          sudo "${IPTABLES}" -t raw -D PREROUTING -i "${iface}" -p tcp -m multiport --dports "${ports}" -j DROP >/dev/null 2>&1 || break
+        done
+      }
+
+      if test -n "${IFACE}"; then
+        remove_rule "${IFACE}" "80,443,6443"
+        remove_rule "${IFACE}" "80,443"
+      fi
+
+      if test -n "${IFACE}" && test -n "${IPTABLES}"; then
+        sudo mkdir -p /etc/systemd/system/k3s.service.d
+        {
+          printf '%s\n' '[Service]'
+          printf '%s\n' "ExecStartPre=/bin/sh -c '${IPTABLES} -t raw -C PREROUTING -i ${IFACE} -p tcp -m multiport --dports 6443 -j DROP 2>/dev/null || ${IPTABLES} -t raw -I PREROUTING -i ${IFACE} -p tcp -m multiport --dports 6443 -j DROP'"
+          printf '%s\n' "ExecStopPost=/bin/sh -c '${IPTABLES} -t raw -D PREROUTING -i ${IFACE} -p tcp -m multiport --dports 6443 -j DROP 2>/dev/null || true'"
+        } | sudo tee "${DROPIN}" >/dev/null
+        sudo "${IPTABLES}" -t raw -C PREROUTING -i "${IFACE}" -p tcp -m multiport --dports 6443 -j DROP >/dev/null 2>&1 \
+          || sudo "${IPTABLES}" -t raw -I PREROUTING -i "${IFACE}" -p tcp -m multiport --dports 6443 -j DROP >/dev/null 2>&1 \
+          || true
+      else
+        sudo rm -f "${DROPIN}" >/dev/null 2>&1 || true
+      fi
+
+      if test -d /var/lib/rancher/k3s/data/current/bin; then
+        sudo mkdir -p /etc/systemd/system/k3s.service.d
+        {
+          printf '%s\n' '[Service]'
+          printf '%s\n' 'Environment="PATH=/var/lib/rancher/k3s/data/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+        } | sudo tee "${CNI_PATH_DROPIN}" >/dev/null
+      fi
+
+      sudo systemctl daemon-reload >/dev/null 2>&1 || true
+      if command -v systemctl >/dev/null 2>&1; then
+        if systemctl is-active --quiet k3s && test "${NEEDS_RESTART}" = "true"; then
+          echo "Restarting k3s after external visibility patch..."
+          sudo systemctl restart k3s
+        elif ! systemctl is-active --quiet k3s; then
+          echo "Starting k3s after external visibility patch..."
+          sudo systemctl start k3s
+        fi
+      fi
+
+      if command -v kubectl >/dev/null 2>&1; then
+        for _ in $(seq 1 120); do
+          kubectl get node trustable >/dev/null 2>&1 && break
+          sleep 2
+        done
+      fi
+      echo "Bestia v2 external HTTP/HTTPS visibility enabled; k3s API port 6443 remains blocked on ${IFACE:-default interface}."
+
+
+  kube-config:
+    silent: true
+    desc: generate the kubeconfig secret to access the cluster internally
+    cmds:
+    #- cat $KUBECONFIG
+    - >
+      cat "$KUBECONFIG"
+      | replace -s 'server: .*$' --stdin --regex
+      -r 'server: https://kubernetes.default.svc.cluster.local'
+      > _kubeconfig
+    #- cat _kubeconfig
+    - kubectl -n nuvolaris delete secret kube-secret 2>/dev/null || true
+    - |
+      export K64=$(ops -base64 -e "$(cat _kubeconfig)")
+      if test -n "$K64"
+      then kubectl -n nuvolaris create secret generic kube-secret --from-literal=kubeconfig="$K64"
+      fi
+
+  ingress:
+    silent: true
+    desc: deploy the ingress
+    env:
+      DOMAIN:
+        sh: ops util kubeget cm/config .metadata.annotations.apihost | ops -replace -s 'https?://' -r '' --regex --stdin
+    cmds:
+      - |
+        envsubst -i {{.INGRESS}}.yaml -o _ingress.yaml
+        kubectl -n nuvolaris {{.ACTION}} -n nuvolaris -f _ingress.yaml
+
+  config:
+    silent: true
+    desc: configurations for miniops
+    cmds:
+      - |
+        case {{.INGRESS}} in
+          traefik) export INGRESS_SVC=traefik.kube-system.svc.cluster.local ;;
+          nginx) export INGRESS_SVC=ingress-nginx-controller.ingress-nginx.svc.cluster.local ;;
+          *) die "unknown service type" ;;
+        esac
+        envsubst -i nginx.conf -o _nginx.conf
+        envsubst -i coredns.yaml -o _coredns.yaml
+      - kubectl -n nuvolaris create configmap nginx-proxy-config --from-file=nginx.conf=_nginx.conf || true
+      - kubectl -n kube-system apply -f _coredns.yaml
+      - kubectl -n kube-system rollout restart deployment coredns
+
+  sts:
+    silent: true
+    desc: deploy the sts in kubernetes
+    cmds:
+      - test -n "${BESTIA_IMAGES_TRUSTABLE}" || die "missing trustable image"
+      - |
+        export IMAGE="${BESTIA_IMAGES_TRUSTABLE}"
+        if id trustable
+        then
+          export USERID="$(id -u trustable)"
+          export GROUPID="$(id -g trustable)"
+          sudo mkdir -p /home/trustable/workspace
+          sudo chown -Rvf "$USERID:$GROUPID" /home/trustable/workspace
+        else
+          echo "No user trustable - this is the development environment"
+          echo "Using defaults and assuming directory properly configured"
+          export USERID=769
+          export GROUPID=769
+        fi
+        envsubst <sts.yaml >_sts.yaml
+      - kubectl -n nuvolaris {{.ACTION}} -f _sts.yaml
+
+  tika:
+    desc: deploy tika
+    cmds:
+      - envsubst -i tika.yaml -o _tika.yaml
+      - kubectl -n nuvolaris {{.ACTION}} -f _tika.yaml
+      - ops setup kubernetes wait OBJECT=po/tika-0 COND=true
+
+  deploy:
+    silent: true
+    desc: setup trustable
+    cmds:
+      # this must be invoked by the installer
+      #- task: expose-external
+      - task: tika
+      - task: config
+      - task: kube-config
+      - task: ingress
+      - task: sts
+      - ops setup kubernetes wait OBJECT=po/trustable-0 COND=true
+      - echo "Trustable image deployed:"
+      - kubectl -n nuvolaris get po trustable-0 -o jsonpath='{.spec.containers[?(@.name=="trustable")].image}'
+
+  undeploy:
+    silent: true
+    desc: uninstall trustable
+    ignore_error: true
+    cmds:
+      - >
+        kubectl -n nuvolaris delete
+        sts/trustable svc/trustable-svc cm/nginx-proxy-config
+        ing/trustable-ing ing/opencode-ing ing/vite-ing
+        secret/kube-secret svc/trustable-ssh
+        sts/tika svc/tika cm/tika-config
+
+
+  redeploy:
+    silent: true
+    desc: redeploy trustable
+    cmds:
+    - task: undeploy
+    - task: deploy
+
+  doctor:
+    silent: true
+    desc: validate Trustable runtime deployed by Bestia v2
+    cmds:
+    - |
+      test -d /home/trustable/workspace || die "Missing /home/trustable/workspace"
+      OWNER="$(stat -c '%u:%g' /home/trustable/workspace 2>/dev/null || stat -f '%u:%g' /home/trustable/workspace 2>/dev/null || true)"
+      test "${OWNER}" = "1000:1000" || die "Unexpected /home/trustable/workspace ownership: ${OWNER:-unknown}, expected 1000:1000"
+      kubectl -n nuvolaris get pod/trustable-0 >/dev/null 2>&1 || die "Missing pod nuvolaris/trustable-0"
+      kubectl -n nuvolaris get svc/trustable-svc >/dev/null 2>&1 || die "Missing service nuvolaris/trustable-svc"
+      kubectl -n nuvolaris get ing/trustable-ing ing/opencode-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
+      kubectl -n ingress-nginx get deploy/default-nginx svc/default-nginx ing/default-nginx-catchall >/dev/null 2>&1 || die "Missing Bestia proxy/catch-all"
+      kubectl -n nuvolaris get svc/ollama >/dev/null 2>&1 || die "Missing Ollama k3s service"
+      if test -f /etc/systemd/system/k3s.service.d/blockports.conf && grep -q -- '--dports 80,443' /etc/systemd/system/k3s.service.d/blockports.conf; then
+        die "k3s external HTTP/HTTPS block is still active in blockports.conf"
+      fi
+      echo "Trustable runtime looks ready."
