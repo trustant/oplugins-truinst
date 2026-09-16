@@ -1,0 +1,8 @@
+{
+  "version": "0.1.0",
+  "config": {
+    "images": {
+      "trustable": "ghcr.io/trustable-ai/trustable-app:trustable_v0.4.0_26.233.2328"
+    }
+  }
+}

@@ -17,7 +17,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: tika-config
-  namespace: nuvolaris
+  namespace: openserverless
 data:
   JAVA_OPTS: "-Xms256m -Xmx1g -Djava.awt.headless=true"
   tika-config.xml: |
@@ -36,7 +36,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: tika
-  namespace: nuvolaris
+  namespace: openserverless
   labels:
     app: tika
 spec:
@@ -113,7 +113,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: tika
-  namespace: nuvolaris
+  namespace: openserverless
   labels:
     app: tika
 spec:

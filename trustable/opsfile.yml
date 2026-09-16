@@ -49,7 +49,7 @@ tasks:
   info:
     silent: true
     cmds:
-    - echo 'Trustable Image:' "${BESTIA_IMAGES_TRUSTABLE}"
+    - echo 'Trustable Image:' "${TRUINST_IMAGES_TRUSTABLE}"
 
   expose-external:
     silent: true
@@ -58,7 +58,7 @@ tasks:
     - |
       set -e
       DROPIN="/etc/systemd/system/k3s.service.d/blockports.conf"
-      CNI_PATH_DROPIN="/etc/systemd/system/k3s.service.d/bestia-cni-path.conf"
+      CNI_PATH_DROPIN="/etc/systemd/system/k3s.service.d/truinst-cni-path.conf"
       IPTABLES="$(command -v iptables || true)"
       IFACE=""
       NEEDS_RESTART="false"
@@ -124,7 +124,7 @@ tasks:
           sleep 2
         done
       fi
-      echo "Bestia v2 external HTTP/HTTPS visibility enabled; k3s API port 6443 remains blocked on ${IFACE:-default interface}."
+      echo "OpenServerless external HTTP/HTTPS visibility enabled; k3s API port 6443 remains blocked on ${IFACE:-default interface}."
 
 
   kube-config:
@@ -138,11 +138,11 @@ tasks:
       -r 'server: https://kubernetes.default.svc.cluster.local'
       > _kubeconfig
     #- cat _kubeconfig
-    - kubectl -n nuvolaris delete secret kube-secret 2>/dev/null || true
+    - kubectl -n openserverless delete secret kube-secret 2>/dev/null || true
     - |
       export K64=$(ops -base64 -e "$(cat _kubeconfig)")
       if test -n "$K64"
-      then kubectl -n nuvolaris create secret generic kube-secret --from-literal=kubeconfig="$K64"
+      then kubectl -n openserverless create secret generic kube-secret --from-literal=kubeconfig="$K64"
       fi
 
   ingress:
@@ -154,7 +154,7 @@ tasks:
     cmds:
       - |
         envsubst -i {{.INGRESS}}.yaml -o _ingress.yaml
-        kubectl -n nuvolaris {{.ACTION}} -n nuvolaris -f _ingress.yaml
+        kubectl -n openserverless {{.ACTION}} -f _ingress.yaml
 
   config:
     silent: true
@@ -168,7 +168,7 @@ tasks:
         esac
         envsubst -i nginx.conf -o _nginx.conf
         envsubst -i coredns.yaml -o _coredns.yaml
-      - kubectl -n nuvolaris create configmap nginx-proxy-config --from-file=nginx.conf=_nginx.conf || true
+      - kubectl -n openserverless create configmap nginx-proxy-config --from-file=nginx.conf=_nginx.conf || true
       - kubectl -n kube-system apply -f _coredns.yaml
       - kubectl -n kube-system rollout restart deployment coredns
 
@@ -176,9 +176,9 @@ tasks:
     silent: true
     desc: deploy the sts in kubernetes
     cmds:
-      - test -n "${BESTIA_IMAGES_TRUSTABLE}" || die "missing trustable image"
+      - test -n "${TRUINST_IMAGES_TRUSTABLE}" || die "missing trustable image"
       - |
-        export IMAGE="${BESTIA_IMAGES_TRUSTABLE}"
+        export IMAGE="${TRUINST_IMAGES_TRUSTABLE}"
         if id trustable
         then
           export USERID="$(id -u trustable)"
@@ -192,13 +192,13 @@ tasks:
           export GROUPID=769
         fi
         envsubst <sts.yaml >_sts.yaml
-      - kubectl -n nuvolaris {{.ACTION}} -f _sts.yaml
+      - kubectl -n openserverless {{.ACTION}} -f _sts.yaml
 
   tika:
     desc: deploy tika
     cmds:
       - envsubst -i tika.yaml -o _tika.yaml
-      - kubectl -n nuvolaris {{.ACTION}} -f _tika.yaml
+      - kubectl -n openserverless {{.ACTION}} -f _tika.yaml
       - ops setup kubernetes wait OBJECT=po/tika-0 COND=true
 
   deploy:
@@ -214,7 +214,7 @@ tasks:
       - task: sts
       - ops setup kubernetes wait OBJECT=po/trustable-0 COND=true
       - echo "Trustable image deployed:"
-      - kubectl -n nuvolaris get po trustable-0 -o jsonpath='{.spec.containers[?(@.name=="trustable")].image}'
+      - kubectl -n openserverless get po trustable-0 -o jsonpath='{.spec.containers[?(@.name=="trustable")].image}'
 
   undeploy:
     silent: true
@@ -222,7 +222,7 @@ tasks:
     ignore_error: true
     cmds:
       - >
-        kubectl -n nuvolaris delete
+        kubectl -n openserverless delete
         sts/trustable svc/trustable-svc cm/nginx-proxy-config
         ing/trustable-ing ing/opencode-ing ing/vite-ing
         secret/kube-secret svc/trustable-ssh
@@ -238,17 +238,17 @@ tasks:
 
   doctor:
     silent: true
-    desc: validate Trustable runtime deployed by Bestia v2
+    desc: validate Trustable runtime deployed by the OpenServerless installer
     cmds:
     - |
       test -d /home/trustable/workspace || die "Missing /home/trustable/workspace"
       OWNER="$(stat -c '%u:%g' /home/trustable/workspace 2>/dev/null || stat -f '%u:%g' /home/trustable/workspace 2>/dev/null || true)"
       test "${OWNER}" = "1000:1000" || die "Unexpected /home/trustable/workspace ownership: ${OWNER:-unknown}, expected 1000:1000"
-      kubectl -n nuvolaris get pod/trustable-0 >/dev/null 2>&1 || die "Missing pod nuvolaris/trustable-0"
-      kubectl -n nuvolaris get svc/trustable-svc >/dev/null 2>&1 || die "Missing service nuvolaris/trustable-svc"
-      kubectl -n nuvolaris get ing/trustable-ing ing/opencode-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
-      kubectl -n ingress-nginx get deploy/default-nginx svc/default-nginx ing/default-nginx-catchall >/dev/null 2>&1 || die "Missing Bestia proxy/catch-all"
-      kubectl -n nuvolaris get svc/ollama >/dev/null 2>&1 || die "Missing Ollama k3s service"
+      kubectl -n openserverless get pod/trustable-0 >/dev/null 2>&1 || die "Missing pod openserverless/trustable-0"
+      kubectl -n openserverless get svc/trustable-svc >/dev/null 2>&1 || die "Missing service openserverless/trustable-svc"
+      kubectl -n openserverless get ing/trustable-ing ing/opencode-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
+      kubectl -n ingress-nginx get deploy/default-nginx svc/default-nginx ing/default-nginx-catchall >/dev/null 2>&1 || die "Missing OpenServerless proxy/catch-all"
+      kubectl -n openserverless get svc/ollama >/dev/null 2>&1 || die "Missing Ollama k3s service"
       if test -f /etc/systemd/system/k3s.service.d/blockports.conf && grep -q -- '--dports 80,443' /etc/systemd/system/k3s.service.d/blockports.conf; then
         die "k3s external HTTP/HTTPS block is still active in blockports.conf"
       fi

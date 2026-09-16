@@ -1,10 +1,10 @@
-kns nuvolaris
+kns openserverless
 
 kg po
 kdel svc/ollama po/ollama
 
-ops bestia trustable undeploy
+ops truinst trustable undeploy
 
-ops bestia trustable deploy
+ops truinst trustable deploy
 
 
