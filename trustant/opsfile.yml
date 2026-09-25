@@ -266,10 +266,10 @@ tasks:
       test "${OWNER}" = "1000:1000" || die "Unexpected /home/trustant/workspace ownership: ${OWNER:-unknown}, expected 1000:1000"
       kubectl -n openserverless get pod/trustant-0 >/dev/null 2>&1 || die "Missing pod openserverless/trustant-0"
       kubectl -n openserverless get svc/trustant-svc >/dev/null 2>&1 || die "Missing service openserverless/trustant-svc"
-      kubectl -n openserverless get ing/trustant-ing ing/truacp-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
+      kubectl -n openserverless get ing/trustant-ing ing/truacp-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustant ingresses"
       kubectl -n ingress-nginx get deploy/default-nginx svc/default-nginx ing/default-nginx-catchall >/dev/null 2>&1 || die "Missing OpenServerless proxy/catch-all"
       kubectl -n openserverless get svc/ollama >/dev/null 2>&1 || die "Missing Ollama k3s service"
       if test -f /etc/systemd/system/k3s.service.d/blockports.conf && grep -q -- '--dports 80,443' /etc/systemd/system/k3s.service.d/blockports.conf; then
         die "k3s external HTTP/HTTPS block is still active in blockports.conf"
       fi
-      echo "Trustable runtime looks ready."
+      echo "Trustant runtime looks ready."
