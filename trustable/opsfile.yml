@@ -120,7 +120,7 @@ tasks:
 
       if command -v kubectl >/dev/null 2>&1; then
         for _ in $(seq 1 120); do
-          kubectl get node trustable >/dev/null 2>&1 && break
+          kubectl get node trustant >/dev/null 2>&1 && break
           sleep 2
         done
       fi
@@ -221,10 +221,16 @@ tasks:
     desc: uninstall trustable
     ignore_error: true
     cmds:
+      # The ing/trustable-ing and ing/opencode-ing entries are the PRE-RENAME
+      # names. They stay listed so upgrading a cluster that still runs them
+      # removes them instead of orphaning them; the task is ignore_error, so
+      # deleting names that are already gone is a no-op. Drop them once no
+      # deployed cluster predates the trustant-ing/truacp-ing rename.
       - >
         kubectl -n openserverless delete
         sts/trustable svc/trustable-svc cm/nginx-proxy-config
-        ing/trustable-ing ing/opencode-ing ing/vite-ing
+        ing/trustant-ing ing/truacp-ing ing/vite-ing
+        ing/trustable-ing ing/opencode-ing
         secret/kube-secret svc/trustable-ssh
         sts/tika svc/tika cm/tika-config
 
@@ -246,7 +252,7 @@ tasks:
       test "${OWNER}" = "1000:1000" || die "Unexpected /home/trustable/workspace ownership: ${OWNER:-unknown}, expected 1000:1000"
       kubectl -n openserverless get pod/trustable-0 >/dev/null 2>&1 || die "Missing pod openserverless/trustable-0"
       kubectl -n openserverless get svc/trustable-svc >/dev/null 2>&1 || die "Missing service openserverless/trustable-svc"
-      kubectl -n openserverless get ing/trustable-ing ing/opencode-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
+      kubectl -n openserverless get ing/trustant-ing ing/truacp-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
       kubectl -n ingress-nginx get deploy/default-nginx svc/default-nginx ing/default-nginx-catchall >/dev/null 2>&1 || die "Missing OpenServerless proxy/catch-all"
       kubectl -n openserverless get svc/ollama >/dev/null 2>&1 || die "Missing Ollama k3s service"
       if test -f /etc/systemd/system/k3s.service.d/blockports.conf && grep -q -- '--dports 80,443' /etc/systemd/system/k3s.service.d/blockports.conf; then

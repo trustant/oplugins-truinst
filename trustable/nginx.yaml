@@ -17,13 +17,13 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: trustable-ing
+  name: trustant-ing
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
   rules:
-    - host: trustable.$DOMAIN
+    - host: trustant.$DOMAIN
       http:
         paths:
           - path: /
@@ -35,18 +35,18 @@ spec:
                   number: 8910
   #tls:
   #  - hosts:
-  #      - trustable.$DOMAIN
+  #      - trustant.$DOMAIN
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: opencode-ing
+  name: truacp-ing
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
   rules:
-    - host: opencode.$DOMAIN
+    - host: truacp.$DOMAIN
       http:
         paths:
           - path: /
@@ -58,7 +58,7 @@ spec:
                   number: 4096
   #tls:
   #  - hosts:
-  #      - opencode.$DOMAIN
+  #      - truacp.$DOMAIN
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
