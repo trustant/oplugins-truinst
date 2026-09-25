@@ -1,0 +1,10 @@
+kns openserverless
+
+kg po
+kdel svc/ollama po/ollama
+
+ops truinst trustant undeploy
+
+ops truinst trustant deploy
+
+

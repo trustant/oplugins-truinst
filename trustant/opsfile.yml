@@ -17,20 +17,20 @@ version: "3"
 
 vars:
   ACTION: "apply"
-  KEY: "trustable"
+  KEY: "trustant"
   EXTRA: ""
   UID:
     sh: 'echo {{ if eq OS "windows" }}1000{{ else }}$(id -u){{ end }}'
   GID:
     sh: 'echo {{ if eq OS "windows" }}1000{{ else }}$(id -g){{ end }}'
 
-  ENTRY: trustable
+  ENTRY: trustant
   SSHDIR:
     sh: |
         echo ~/.ssh | replace -s \\ -r / --stdin
   SSHKEY:
     sh: |
-        echo {{.SSHDIR}}/id_trustable
+        echo {{.SSHDIR}}/id_trustant
 
   INGRESS:
     sh: ops util ingress
@@ -49,11 +49,11 @@ tasks:
   info:
     silent: true
     cmds:
-    - echo 'Trustable Image:' "${TRUINST_IMAGES_TRUSTABLE}"
+    - echo 'Trustant Image:' "${TRUINST_IMAGES_TRUSTANT}"
 
   expose-external:
     silent: true
-    desc: remove Trustable .deb k3s HTTP/HTTPS external visibility block
+    desc: remove Trustant .deb k3s HTTP/HTTPS external visibility block
     cmds:
     - |
       set -e
@@ -176,17 +176,30 @@ tasks:
     silent: true
     desc: deploy the sts in kubernetes
     cmds:
-      - test -n "${TRUINST_IMAGES_TRUSTABLE}" || die "missing trustable image"
+      - test -n "${TRUINST_IMAGES_TRUSTANT}" || die "missing trustant image"
+      # Migrate a pre-rebrand install before the StatefulSet is applied: the
+      # hostPath moved from /home/trustant/workspace to /home/trustant, and
+      # the volume holds all user data. usermod -m preserves the uid/gid and
+      # moves the home, so ownership inside the volume stays valid. Idempotent
+      # by construction -- if the trustant user already exists there is nothing
+      # to do, and a rerun after a partial move finds only the new name.
       - |
-        export IMAGE="${TRUINST_IMAGES_TRUSTABLE}"
-        if id trustable
+        if ! id trustant >/dev/null 2>&1 && id trustable >/dev/null 2>&1
         then
-          export USERID="$(id -u trustable)"
-          export GROUPID="$(id -g trustable)"
-          sudo mkdir -p /home/trustable/workspace
-          sudo chown -Rvf "$USERID:$GROUPID" /home/trustable/workspace
+          echo "Migrating user trustable -> trustant (preserving uid/gid and data)"
+          sudo usermod -l trustant -d /home/trustant -m trustable
+          sudo groupmod -n trustant trustable || true
+        fi
+      - |
+        export IMAGE="${TRUINST_IMAGES_TRUSTANT}"
+        if id trustant
+        then
+          export USERID="$(id -u trustant)"
+          export GROUPID="$(id -g trustant)"
+          sudo mkdir -p /home/trustant/workspace
+          sudo chown -Rvf "$USERID:$GROUPID" /home/trustant/workspace
         else
-          echo "No user trustable - this is the development environment"
+          echo "No user trustant - this is the development environment"
           echo "Using defaults and assuming directory properly configured"
           export USERID=769
           export GROUPID=769
@@ -203,7 +216,7 @@ tasks:
 
   deploy:
     silent: true
-    desc: setup trustable
+    desc: setup trustant
     cmds:
       # this must be invoked by the installer
       #- task: expose-external
@@ -212,46 +225,47 @@ tasks:
       - task: kube-config
       - task: ingress
       - task: sts
-      - ops setup kubernetes wait OBJECT=po/trustable-0 COND=true
-      - echo "Trustable image deployed:"
-      - kubectl -n openserverless get po trustable-0 -o jsonpath='{.spec.containers[?(@.name=="trustable")].image}'
+      - ops setup kubernetes wait OBJECT=po/trustant-0 COND=true
+      - echo "Trustant image deployed:"
+      - kubectl -n openserverless get po trustant-0 -o jsonpath='{.spec.containers[?(@.name=="trustant")].image}'
 
   undeploy:
     silent: true
-    desc: uninstall trustable
+    desc: uninstall trustant
     ignore_error: true
     cmds:
-      # The ing/trustable-ing and ing/opencode-ing entries are the PRE-RENAME
-      # names. They stay listed so upgrading a cluster that still runs them
-      # removes them instead of orphaning them; the task is ignore_error, so
-      # deleting names that are already gone is a no-op. Drop them once no
-      # deployed cluster predates the trustant-ing/truacp-ing rename.
+      # The second line holds the PRE-RENAME object names. They stay listed so
+      # upgrading a cluster that still runs them removes them instead of
+      # orphaning them; the task is ignore_error, so deleting names that are
+      # already gone is a no-op. Drop that line once no deployed cluster
+      # predates the trustant rename.
       - >
         kubectl -n openserverless delete
-        sts/trustable svc/trustable-svc cm/nginx-proxy-config
+        sts/trustant svc/trustant-svc cm/nginx-proxy-config
         ing/trustant-ing ing/truacp-ing ing/vite-ing
+        secret/kube-secret svc/trustant-ssh
+        sts/trustable svc/trustable-svc svc/trustable-ssh
         ing/trustable-ing ing/opencode-ing
-        secret/kube-secret svc/trustable-ssh
         sts/tika svc/tika cm/tika-config
 
 
   redeploy:
     silent: true
-    desc: redeploy trustable
+    desc: redeploy trustant
     cmds:
     - task: undeploy
     - task: deploy
 
   doctor:
     silent: true
-    desc: validate Trustable runtime deployed by the OpenServerless installer
+    desc: validate Trustant runtime deployed by the OpenServerless installer
     cmds:
     - |
-      test -d /home/trustable/workspace || die "Missing /home/trustable/workspace"
-      OWNER="$(stat -c '%u:%g' /home/trustable/workspace 2>/dev/null || stat -f '%u:%g' /home/trustable/workspace 2>/dev/null || true)"
-      test "${OWNER}" = "1000:1000" || die "Unexpected /home/trustable/workspace ownership: ${OWNER:-unknown}, expected 1000:1000"
-      kubectl -n openserverless get pod/trustable-0 >/dev/null 2>&1 || die "Missing pod openserverless/trustable-0"
-      kubectl -n openserverless get svc/trustable-svc >/dev/null 2>&1 || die "Missing service openserverless/trustable-svc"
+      test -d /home/trustant/workspace || die "Missing /home/trustant/workspace"
+      OWNER="$(stat -c '%u:%g' /home/trustant/workspace 2>/dev/null || stat -f '%u:%g' /home/trustant/workspace 2>/dev/null || true)"
+      test "${OWNER}" = "1000:1000" || die "Unexpected /home/trustant/workspace ownership: ${OWNER:-unknown}, expected 1000:1000"
+      kubectl -n openserverless get pod/trustant-0 >/dev/null 2>&1 || die "Missing pod openserverless/trustant-0"
+      kubectl -n openserverless get svc/trustant-svc >/dev/null 2>&1 || die "Missing service openserverless/trustant-svc"
       kubectl -n openserverless get ing/trustant-ing ing/truacp-ing ing/vite-ing >/dev/null 2>&1 || die "Missing Trustable ingresses"
       kubectl -n ingress-nginx get deploy/default-nginx svc/default-nginx ing/default-nginx-catchall >/dev/null 2>&1 || die "Missing OpenServerless proxy/catch-all"
       kubectl -n openserverless get svc/ollama >/dev/null 2>&1 || die "Missing Ollama k3s service"

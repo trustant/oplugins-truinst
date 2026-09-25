@@ -1,4 +1,4 @@
-create the an file nginx.yaml with a service trustable-svc exposing the ports 4096 5173 and 8910
+create the an file nginx.yaml with a service trustant-svc exposing the ports 4096 5173 and 8910
 
 and an ingress nginx forwarding http and https on the root path to:
 for the domains trustant.miniops.me on port 8910 trustant-ing

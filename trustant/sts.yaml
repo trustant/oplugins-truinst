@@ -16,19 +16,19 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: trustable
+  name: trustant
 spec:
-  serviceName: trustable
+  serviceName: trustant
   replicas: 1
   selector:
     matchLabels:
-      app: trustable
+      app: trustant
   template:
     metadata:
       labels:
-        app: trustable
+        app: trustant
     spec:
-      hostname: trustable
+      hostname: trustant
       dnsConfig:
         options:
         - name: ndots
@@ -36,12 +36,12 @@ spec:
       volumes:
       - name: workspace
         hostPath:
-          path: /home/trustable/workspace
+          path: /home/trustant/workspace
       - name: nginx-config
         configMap:
           name: nginx-proxy-config
       containers:
-      - name: trustable
+      - name: trustant
         image: $IMAGE
         #command: ["tail", "-f", "/dev/null"]
         ports:
@@ -59,7 +59,7 @@ spec:
           protocol: TCP
         volumeMounts:
         - name: workspace
-          mountPath: /home/trustable/workspace
+          mountPath: /home/trustant/workspace
         env:
         - name: DEBIAN_FRONTEND
           value: noninteractive
@@ -88,13 +88,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: trustable-ssh
+  name: trustant-ssh
   labels:
-    app: trustable
+    app: trustant
 spec:
   type: NodePort
   selector:
-    app: trustable
+    app: trustant
   ports:
   - port: 2222
     targetPort: 2222
@@ -105,10 +105,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: trustable-svc
+  name: trustant-svc
 spec:
   selector:
-    app: trustable
+    app: trustant
   type: ClusterIP
   ports:
     - name: web

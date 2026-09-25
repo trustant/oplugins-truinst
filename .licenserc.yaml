@@ -54,7 +54,7 @@ header:
     - '**/*.conf'
 
   paths-ignore:
-    - 'trustable/nginx.conf'
+    - 'trustant/nginx.conf'
 
     # VCS / tooling metadata
     - '.licenserc.yaml'

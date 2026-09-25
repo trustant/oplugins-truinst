@@ -30,7 +30,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: trustable-svc
+                name: trustant-svc
                 port:
                   number: 8910
   #tls:
@@ -53,7 +53,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: trustable-svc
+                name: trustant-svc
                 port:
                   number: 4096
   #tls:
@@ -76,7 +76,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: trustable-svc
+                name: trustant-svc
                 port:
                   number: 5173
   #tls:
