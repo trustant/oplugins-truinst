@@ -220,7 +220,7 @@ tasks:
     cmds:
       # this must be invoked by the installer
       #- task: expose-external
-      - task: tika
+      #- task: tika
       - task: config
       - task: kube-config
       - task: ingress
