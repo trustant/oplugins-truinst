@@ -601,7 +601,7 @@ export class Addon {
     if (options.command === "test") {
       if (!resources.get("statefulset"))
         throw new Error(
-          "Infinity is not installed; run ops truinst infinity first.",
+          "Infinity is not installed; run ops truinst infinity install first.",
         );
       return this.verify();
     }

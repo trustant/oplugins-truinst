@@ -18,6 +18,7 @@ The public interface belongs to this plugin's tasks, not the OPS binary.
 - `ops truinst infinity status`: report runtime and retained cache state.
 - `ops truinst infinity test`: verify health/models, native CPU-only runtime,
   finite 384-dimensional embeddings, and Italian semantic ordering.
+  If absent, the error directs the user to `ops truinst infinity install`.
 - `ops truinst infinity logs`: show the last 100 log lines.
 - `ops truinst infinity uninstall [--purge] [--dry-run]`: remove the runtime;
   default preserves model PVC, image and builder cache. Explicit purge deletes
