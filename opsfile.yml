@@ -15,8 +15,12 @@
 
 version: "3"
 
-
 tasks:
-
   trustant:
     desc: trustant
+
+  infinity:
+    desc: install the optional Infinity CPU add-on
+    silent: true
+    cmds:
+      - bun infinity/main.ts install
