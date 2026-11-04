@@ -9,13 +9,14 @@ Trustant k3s VM.
 Run inside the Linux VM, with the normal OPS binary and this plugin installed:
 
 ```sh
-ops truinst infinity
+ops truinst infinity install
 ops truinst infinity status
 ops truinst infinity test
 ops truinst infinity logs
 ```
 
-The bare command is equivalent to `ops truinst infinity install`. Installation
+An explicit subcommand is required: `ops truinst infinity` alone shows the
+available subcommands and does not perform any operation. Installation
 builds a dedicated native CPU image if it is missing, imports it into local
 k3s, downloads the pinned multilingual embedding model into its own persistent
 volume, waits for readiness, and verifies real Italian embeddings. It can take

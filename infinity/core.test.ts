@@ -52,6 +52,7 @@ class Fake {
   otherPods: Resource[] = [];
   localState = false;
   symlink = false;
+  builderFailed = false;
   marker = owner;
   nodeData = structuredClone(nodes);
   fail: (args: string[]) => boolean = () => false;
@@ -80,6 +81,13 @@ class Fake {
       return { ...ok(), code: this.localState ? 0 : 1 };
     if (text.includes(`cat ${stateDir}/owner`)) return ok(this.marker);
     if (text.includes("systemctl is-active")) return { ...ok(), code: 3 };
+    if (text.includes("systemctl is-failed"))
+      return { ...ok(), code: this.builderFailed ? 0 : 1 };
+    if (args.includes("--property=Transient")) return ok("yes\n");
+    if (args.includes("--property=ExecStart"))
+      return ok(
+        `buildkitd --addr unix:///run/trustant-infinity-builder/buildkitd.sock --root ${stateDir}/buildkit`,
+      );
     if (text.includes("which ")) return ok(`/usr/local/bin/${args.at(-1)}\n`);
     if (args.includes("exec")) return ok('{"ok":true}');
     return ok();
@@ -127,6 +135,21 @@ const options = (
 ) => ({ command, purge, dryRun });
 
 describe("CLI boundaries", () => {
+  test("a missing subcommand is rejected before spawning a process", () => {
+    const child = Bun.spawnSync(
+      [process.execPath, join(import.meta.dir, "main.ts")],
+      {
+        env: { ...process.env, PATH: "/nonexistent" },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    expect(child.exitCode).toBe(1);
+    expect(child.stderr.toString()).toContain("A subcommand is required");
+    expect(child.stdout.toString()).toBe("");
+    expect(() => parseOptions([])).toThrow("A subcommand is required");
+    expect(parseOptions(["--help"])).toBeNull();
+  });
   test("accepts OPS booleans and explicit direct flags without coercing false to true", () => {
     expect(parseOptions(["uninstall", "false", "true"])).toEqual(
       options("uninstall", false, true),
@@ -214,6 +237,28 @@ describe("owned lifecycle", () => {
     expect(
       fake.calls.some((c) =>
         c.args.join(" ").endsWith("systemctl stop trustant-infinity-builder"),
+      ),
+    ).toBe(true);
+  });
+  test("a retry clears only its recognized stopped transient builder and collects new units", async () => {
+    const fake = new Fake();
+    fake.images = [];
+    fake.localState = true;
+    fake.builderFailed = true;
+    fake.fail = (args) => args.includes("buildctl") && args.includes("build");
+    await expect(fake.addon().execute(options("install"))).rejects.toThrow(
+      "deliberate failure",
+    );
+    expect(
+      fake.calls.some(
+        (c) =>
+          c.args.includes("reset-failed") &&
+          c.args.includes("trustant-infinity-builder"),
+      ),
+    ).toBe(true);
+    expect(
+      fake.calls.some(
+        (c) => c.args.includes("systemd-run") && c.args.includes("--collect"),
       ),
     ).toBe(true);
   });

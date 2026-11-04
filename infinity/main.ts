@@ -37,7 +37,7 @@ if (import.meta.main) {
     const options = parseOptions(process.argv.slice(2));
     if (!options) {
       console.log(
-        "ops truinst infinity [install | status | test | logs | uninstall [--purge] | help]\nInstall/uninstall also accept --dry-run. Run operational commands inside the Linux Trustant VM.",
+        "ops truinst infinity <install | status | test | logs | uninstall [--purge] | help>\nAn explicit subcommand is required. Install/uninstall also accept --dry-run. Run operational commands inside the Linux Trustant VM.",
       );
     } else {
       const arch: Architecture =

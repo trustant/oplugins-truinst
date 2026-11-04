@@ -1,6 +1,6 @@
 # Tasks `ops truinst infinity`
 
-Optional CPU embedding service for the local Trustant VM. The bare command installs it.
+Optional CPU embedding service for the local Trustant VM. An explicit subcommand is required.
 
 ## Synopsis
 

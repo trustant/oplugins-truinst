@@ -20,7 +20,4 @@ tasks:
     desc: trustant
 
   infinity:
-    desc: install the optional Infinity CPU add-on
-    silent: true
-    cmds:
-      - bun infinity/main.ts install
+    desc: Infinity CPU add-on (explicit subcommand required)

@@ -10,7 +10,9 @@ The public interface belongs to this plugin's tasks, not the OPS binary.
 
 ## Commands
 
-- `ops truinst infinity`: install (same as explicit `install`).
+- `ops truinst infinity` is only a namespace: without a subcommand it displays
+  usage and never starts installation or contacts the cluster. The installed
+  OPS CLI returns zero for namespace help; this is not installation success.
 - `ops truinst infinity install [--dry-run]`: ensure the dedicated image is
   available, apply owned resources, wait for readiness, then run real inference.
 - `ops truinst infinity status`: report runtime and retained cache state.
@@ -57,7 +59,9 @@ architecture lock, so changing source cannot reuse a stale image silently.
 If that image is absent from k3s containerd, install builds it locally using
 installed BuildKit tools and a dedicated transient builder, then imports the
 OCI archive into k3s. Builder processes are stopped in a finally path;
-failures stop installation and do not report success. The temporary OCI archive
+transient units are collected after stopping. A retry can reset an older failed
+unit only after verifying its transient status and exact add-on address/root.
+Failures stop installation and do not report success. The temporary OCI archive
 is removed after a successful import. Existing unrelated builders are untouched.
 Missing prerequisites fail with instructions. There is no image push.
 A separate multiarch build script can produce an OCI archive; it is never

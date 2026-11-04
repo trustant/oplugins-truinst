@@ -60,7 +60,12 @@ export interface Resource {
 }
 
 export function parseOptions(args: string[]): Options | null {
-  if (args.length === 0 || ["help", "--help", "-h"].includes(args[0]!)) {
+  // The namespace alone must never imply an installation or another mutation.
+  if (args.length === 0)
+    throw new Error(
+      "A subcommand is required. Use: ops truinst infinity install | status | test | logs | uninstall [--purge] | help",
+    );
+  if (["help", "--help", "-h"].includes(args[0]!)) {
     if (args.length > 1) throw new Error("Help does not accept arguments.");
     return null;
   }
@@ -408,9 +413,46 @@ export class Addon {
       throw new Error(
         "An Infinity builder is already active; wait for it to finish.",
       );
+    if (
+      (
+        await this.run([
+          ...this.privileged,
+          "systemctl",
+          "is-failed",
+          "--quiet",
+          builderUnit,
+        ])
+      ).code === 0
+    ) {
+      // Older BuildKit versions exit 1 on an intentional SIGTERM. Clear only
+      // our own stopped transient unit, so a retry can create it again.
+      const transient = await this.sudo([
+        "systemctl",
+        "show",
+        builderUnit,
+        "--property=Transient",
+        "--value",
+      ]);
+      const command = await this.sudo([
+        "systemctl",
+        "show",
+        builderUnit,
+        "--property=ExecStart",
+        "--value",
+      ]);
+      if (
+        transient.trim() !== "yes" ||
+        !command.includes(builderAddress) ||
+        !command.includes(`${stateDir}/buildkit`)
+      ) {
+        throw new Error("Refusing to reset an unrecognized builder unit.");
+      }
+      await this.sudo(["systemctl", "reset-failed", builderUnit]);
+    }
     const buildkitd = (await this.checked(["which", "buildkitd"])).trim();
     await this.sudo([
       "systemd-run",
+      "--collect",
       `--unit=${builderUnit}`,
       `--property=RuntimeDirectory=${builderUnit}`,
       "--property=MemoryMax=2G",
