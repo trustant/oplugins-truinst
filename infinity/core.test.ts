@@ -10,9 +10,8 @@ import {
   appendFileSync,
   rmSync,
 } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
-import { execFileSync } from "node:child_process";
 import {
   Addon,
   imageRef,
@@ -429,14 +428,42 @@ describe("CPU packaging and isolation", () => {
       expect(lock).toContain("--hash=sha256:");
     }
   });
-  test("ordinary Trustant deployment and image configuration are unchanged", () => {
-    for (const file of ["trustant/opsfile.yml", "opsroot.json"]) {
-      const root = join(import.meta.dir, "..");
-      const before = execFileSync("git", ["show", `HEAD:${file}`], {
-        cwd: root,
-        encoding: "utf8",
+  test("standalone directory supports help and lifecycle previews without sibling files or Git", () => {
+    const dir = mkdtempSync(join(tmpdir(), "infinity-standalone-"));
+    try {
+      const addon = join(dir, "addon");
+      cpSync(import.meta.dir, addon, {
+        recursive: true,
+        filter: (source) =>
+          !["node_modules", "__pycache__"].includes(basename(source)),
       });
-      expect(readFileSync(join(root, file), "utf8")).toBe(before);
+      for (const args of [
+        ["--help"],
+        ["install", "--dry-run"],
+        ["uninstall", "--purge", "--dry-run"],
+      ]) {
+        const child = Bun.spawnSync(
+          [process.execPath, join(addon, "main.ts"), ...args],
+          {
+            cwd: dir,
+            env: { ...process.env, PATH: "/nonexistent" },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        expect(child.exitCode).toBe(0);
+        expect(child.stderr.toString()).toBe("");
+        if (args[0] === "--help")
+          expect(child.stdout.toString()).toContain("ops truinst infinity");
+        else {
+          const output = JSON.parse(child.stdout.toString());
+          expect(output.action).toBe(args[0]);
+          if (args[0] === "install") expect(output.image).toBe(image);
+          else expect(output.deleteModelCache).toBe(true);
+        }
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

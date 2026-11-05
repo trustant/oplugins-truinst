@@ -8,6 +8,23 @@ prepared VM payload, ordinary build, `trustant deploy`, `redeploy`, or
 `undeploy`. It does not change the product's image/version in `opsroot.json`.
 The public interface belongs to this plugin's tasks, not the OPS binary.
 
+## Directory layout and development
+
+The `infinity/` directory is self-contained: it includes command tasks, Bun
+runtime sources, image sources and Python dependency locks, tests, README,
+`spec/infinity.md`, and its own `package.json`, `bun.lock`, `tsconfig.json` and
+`.gitignore`. No add-on development configuration is required at the plugin
+root. Root integration is limited to the OPS namespace declaration and a
+README link. The package manifest supplies development commands only; OPS
+runtime execution has no npm dependencies or dependency-install step.
+
+From the add-on directory, `bun install --frozen-lockfile`, `bun run typecheck`
+and `bun run test` must work even after copying that directory out of the Git
+checkout. Tests must not require Git metadata, a parent package/configuration,
+or sibling Trustant files. Verify unchanged product files against the upstream
+baseline separately when preparing the PR. Runtime help and lifecycle dry runs
+must also work from the isolated directory without modifying the VM.
+
 ## Commands
 
 - `ops truinst infinity` is only a namespace: without a subcommand it displays
@@ -110,7 +127,9 @@ removal is not a promise of immediate host disk compaction.
 
 Automated tests cover CPU manifest semantics, ownership collisions, local target
 selection, no-op/dry-run behavior, retention/purge boundaries, failure
-propagation, dependency lock constraints and independence from Trustant deploy.
+propagation, dependency lock constraints and standalone directory execution.
+PR validation separately checks independence from Trustant deploy against the
+upstream baseline.
 Harmless OPS routing and status checks run on the actual VM. Before a PR,
 perform the following with the user one command at a time: install from an
 empty add-on namespace/cache, test, repeat install, default uninstall, confirm
