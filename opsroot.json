@@ -2,7 +2,7 @@
   "version": "0.1.0",
   "config": {
     "images": {
-      "trustant": "ghcr.io/trustant/trustant:trustant_v1.0.2_26.311.1613"
+      "trustant": "ghcr.io/trustant/trustant:trustant_v1.0.2_26.311.1928"
     },
     "version": {
       "trustant": "v1.0.2"
