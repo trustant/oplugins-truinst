@@ -15,8 +15,9 @@
 
 version: "3"
 
-
 tasks:
-
   trustant:
     desc: trustant
+
+  infinity:
+    desc: Infinity CPU add-on (explicit subcommand required)

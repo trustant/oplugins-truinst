@@ -1,0 +1,36 @@
+# Copyright 2025-2026 Nuvolaris Inc
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# This program is free software under the GNU Affero General Public License as published
+# by the Free Software Foundation, version 3 or later. See ../LICENSE.
+version: "3"
+tasks:
+  install:
+    desc: install the optional Infinity CPU add-on
+    silent: true
+    cmds:
+      - bun main.ts install '{{.__dry_run}}'
+  status:
+    desc: show Infinity runtime and retained cache
+    silent: true
+    cmds:
+      - bun main.ts status
+  test:
+    desc: verify real CPU embeddings
+    silent: true
+    cmds:
+      - bun main.ts test
+  logs:
+    desc: show the last 100 Infinity log lines
+    silent: true
+    cmds:
+      - bun main.ts logs
+  uninstall:
+    desc: uninstall Infinity, preserving model data unless --purge is explicit
+    silent: true
+    cmds:
+      - bun main.ts uninstall '{{.__purge}}' '{{.__dry_run}}'
+  help:
+    desc: show Infinity usage
+    silent: true
+    cmds:
+      - bun main.ts --help
